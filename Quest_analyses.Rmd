@@ -1,0 +1,1247 @@
+---
+title: "Questionnaire"
+output: html_document
+date: "2024-10-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6)
+```
+
+```{r}
+install.packages("tidytext")
+library(tidytext)
+library(tidyverse)
+
+# install.packages("tidyr")
+library(reshape2)
+
+install.packages('RColorBrewer')
+library(RColorBrewer)
+```
+
+```{r}
+theme_set(theme_bw())
+```
+
+
+# Import the Questionnaire
+```{r}
+Quest_all <- read_excel("Quest_all.xls")
+```
+
+
+```{r}
+Quest_all
+```
+
+# order country levels and modify names (medit and alp italy)
+```{r}
+Quest_all$Country<-factor(Quest_all$Country, levels=c('Sweden', 'Germany', 'Italy (TN)', 'Spain', 'Portugal', 'Italy (RM)'))
+levels(Quest_all$Country)<-c('Sweden', 'Germany', 'Italy (Alp)', 'Spain', 'Portugal', 'Italy (Med)')
+```
+
+
+## *Professional sector of respondents*
+
+# Split the column with *profess activity*, to include all keywords
+```{r}
+pro_actvity=
+colsplit(Quest_all$`Which of the following categories best suits your professional activity in the river and riparian zone?`, ',', c('a', 'b', 'c', 'd'))
+
+
+```
+
+# fill the empty cells with NA
+```{r}
+pro_actvity$b[pro_actvity$b=='']<-NA
+pro_actvity$c[pro_actvity$c=='']<-NA
+pro_actvity$d[pro_actvity$d=='']<-NA
+
+```
+
+
+```{r}
+pro_actvity=
+cbind(Quest_all[,c(1,2,3,16,17,21,22)] , pro_actvity)
+pro_actvity$id=c(1:nrow(pro_actvity))
+
+```
+
+# convert to long format to account for multiple profession keywords
+```{r}
+pro_activity.long=
+pro_actvity %>% 
+  pivot_longer(c(8,9,10,11), values_to = 'Sector')
+```
+
+# trim some leading withe spaces
+```{r}
+pro_activity.long$Sector=
+trimws(pro_activity.long$Sector, 'left')
+```
+
+
+```{r}
+names(pro_activity.long)[2]<-'Gender'
+names(pro_activity.long)[5]<-'Conservation_Status'
+
+```
+
+```{r}
+pro_activity.long$Conservation_Status<-
+  factor(pro_activity.long$Conservation_Status, levels = c('High', 'Good', 'Moderate', 'Low'))
+```
+
+
+# check freq of keywords, for contry, sex, etc
+```{r}
+
+pro_activity.long%>% 
+  filter(complete.cases(.)) %>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(Country)
+
+pro_activity.long %>% 
+  #filter(`Gender you identified yourself with` == 'Male') %>% 
+  filter(complete.cases(.)) %>% 
+  count( Country, Sector)
+
+pro_activity.long %>% 
+  #filter(`Gender you identified yourself with` == 'Male') %>% 
+  filter(complete.cases(.)) %>% 
+  count(Gender,Sector)
+```
+
+
+# Some plots of Professional sector
+
+```{r fig.width=6}
+pro_activity.long %>% 
+  filter(complete.cases(.)) %>% 
+  filter(Gender!='Not declared') %>% 
+  filter(Gender!='Prefer not to say') %>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(Gender,Country) %>% 
+  ggplot()+aes (x=Country,y=n, fill=Gender)+geom_bar(position = 'fill', stat='identity') +ylab(NULL)+
+  scale_fill_manual(values=c('orange3', 'steelblue'))+xlab(NULL)+theme(axis.text.x = element_text(angle=45, hjust=1))
+
+pro_activity.long%>% 
+  filter(complete.cases(.)) %>% 
+  filter(Gender!='Not declared') %>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(Sector,Country) %>% 
+  ggplot()+aes (x=Country,y=n, fill=Sector)+geom_bar(position = 'fill', stat='identity')+ylab(NULL)+
+  scale_fill_brewer(palette = 'Paired')+xlab(NULL)+theme(axis.text.x = element_text(angle=45, hjust=1))
+
+pro_activity.long%>% 
+  filter(complete.cases(.)) %>% 
+  filter(Gender!='Not declared') %>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(Conservation_Status,Country) %>% 
+  ggplot()+aes (x=Country,y=n, fill=Conservation_Status)+geom_bar(position = 'fill', stat='identity')+ylab(NULL)+
+  scale_fill_manual(values=c('#2b83ba', '#abdda4', '#fdae61', '#d7191c'))+xlab(NULL)+theme(axis.text.x = element_text(angle=45, hjust=1))
+
+
+pro_activity.long%>% 
+  filter(complete.cases(.)) %>% 
+  filter(Gender!='Not declared') %>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(`CAP buffer zones`,Country) %>% 
+  ggplot()+aes (x=Country,y=n, fill=`CAP buffer zones`)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+
+ theme(axis.text.x = element_text(angle=45, hjust=1))
+```
+
+
+```{r}
+pdf('CAP.pdf', w=5, h=4)
+pro_activity.long%>% 
+  filter(complete.cases(.)) %>% 
+  #filter(Gender!='Not declared') %>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(`CAP buffer zones`,Country) %>% 
+  ggplot()+aes (x=Country,y=n, fill=`CAP buffer zones`)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+
+ theme(axis.text.x = element_text(angle=45, hjust=1))
+dev.off()
+```
+
+
+
+
+# Check the %responses for CAP, Sex and Country
+```{r}
+pro_activity.long%>% 
+  #filter(complete.cases(.)) %>% 
+  #filter(Gender!='Not declared') %>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(`CAP buffer zones`) %>% 
+  mutate(prop=n/sum(n))
+
+
+
+pro_activity.long %>% 
+  #filter(complete.cases(.)) %>% 
+  filter(Gender!='Not declared') %>% 
+  filter(Gender!='Prefer not to say') %>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(Gender) %>% 
+    mutate(prop=n/sum(n))
+
+Quest_all %>% 
+  count(Country) %>% 
+  mutate(prop=n/sum(n))
+
+
+```
+
+```{r}
+pro_activity.long$Country<-factor(pro_activity.long$Country, levels=c('Sweden', 'Germany', 'Italy (TN)', 'Spain', 'Portugal', 'Italy (RM)'))
+```
+
+
+# export plot conservation status
+```{r}
+
+pdf('pie_status.pdf', h=3, w=3)
+pro_activity.long%>% 
+  filter(complete.cases(.)) %>% 
+  filter(Gender!='Not declared') %>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(Conservation_Status) %>% 
+  mutate(hole=3) %>% 
+  mutate(prop=n/sum(n)) %>% 
+    ggplot()+aes(x=hole, y=n, fill=Conservation_Status)+geom_col()+coord_polar(theta = 'y')+xlim(c(0.2, 3 + 0.5))+
+scale_fill_manual(values=c('#2b83ba', '#abdda4', '#fdae61', '#d7191c'))+theme(legend.position = 'none')+
+  theme(panel.background = element_rect(fill = "white"),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+dev.off()
+
+pdf('plot_status.pdf', w=6, h=4)
+pro_activity.long%>% 
+  filter(complete.cases(.)) %>% 
+  filter(Gender!='Not declared') %>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(Conservation_Status,Country) %>% 
+  ggplot()+aes (x=Country,y=n, fill=Conservation_Status)+geom_bar(position = 'fill', stat='identity')+ylab(NULL)+
+  scale_fill_manual(values=c('#2b83ba', '#abdda4', '#fdae61', '#d7191c'))+xlab(NULL)+theme(axis.text.x = element_text(angle=45, hjust=1), axis.text = element_text(size=12))+
+  guides(fill=guide_legend(ncol=2))
+dev.off()
+```
+
+
+
+
+# Plot of Sectors
+```{r}
+plot_sector<-
+  pro_activity.long%>% 
+  filter(complete.cases(.)) %>% 
+  filter(Gender!='Not declared') %>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(Sector,Country) %>% 
+  ggplot()+aes (x=Country,y=n, fill=Sector)+geom_bar(position = 'fill', stat='identity')+ylab(NULL)+
+  scale_fill_brewer(palette = 'Paired')+xlab(NULL)+theme(axis.text.x = element_text(angle=45, hjust=1))+
+  guides(fill=guide_legend(ncol=2))
+  
+
+pie_sector<-
+pro_activity.long%>% 
+  filter(complete.cases(.)) %>% 
+  filter(Gender!='Not declared') %>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(Sector) %>% 
+  mutate(hole=3) %>% 
+  mutate(prop=n/sum(n)) %>% 
+    ggplot()+aes(x=hole, y=n, fill=Sector)+geom_col()+coord_polar(theta = 'y')+xlim(c(0.2, 3 + 0.5))+
+ scale_fill_brewer(palette = 'Paired')+theme(legend.position = 'none')+
+  theme(panel.background = element_rect(fill = "white"),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+
+
+
+```
+# Export sector
+```{r}
+pdf('plot_sector.pdf', w=8, h=5)
+plot_sector
+dev.off()
+
+
+pdf('pie_sector.pdf', w=3, h=3)
+pie_sector
+dev.off()
+```
+
+```{r}
+Quest_all$Age<-factor(Quest_all$Age, levels=c('18-25', '26-35', '36-45', '46-55', '56-65', '>65', 'NA'))
+
+Quest_all %>% 
+    count( Gender) 
+```
+
+
+```{r fig.width=3, fig.height=2.5}
+
+pdf('Age.pdf', w=4, h=3)
+Quest_all %>% 
+  filter(Age !='NA') %>% 
+  filter(Gender != 'Not declared') %>% 
+   filter(Gender!='Prefer not to say') %>% 
+  count(Age, Gender) %>% 
+  ggplot()+aes(x=Age, y=n, fill=Gender)+geom_bar(stat='identity', position='dodge')+theme_classic()+
+  scale_fill_manual(values=c('orange2', 'steelblue'))+theme(legend.title=element_blank(), legend.position = c(0.24, 0.8))+ylab(NULL)
+dev.off()
+
+
+```
+
+
+
+
+```{r}
+pro_activity.long%>% 
+  filter(complete.cases(.)) %>% 
+  filter(Gender!='Not declared') %>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(Conservation_Status,Country) %>% 
+  group_by(Country) %>% 
+  mutate(freq= n/sum(n)) 
+```
+
+
+
+
+# *Non professional activities*
+
+```{r}
+Non_pro_actvity=
+colsplit(Quest_all$`Non-professional activities`, ',', c('a', 'b', 'c'))
+
+```
+
+#Combine the non-profess activity with additional info
+```{r}
+Non_pro_actvity=
+cbind(Quest_all[,c(1,2,3,16,17,21,22)] , Non_pro_actvity)
+Non_pro_actvity$id=c(1:nrow(Non_pro_actvity))
+
+#fill the empty cells with NA
+Non_pro_actvity$a[Non_pro_actvity$a=='']<-NA
+Non_pro_actvity$b[Non_pro_actvity$b=='']<-NA
+Non_pro_actvity$c[Non_pro_actvity$c=='']<-NA
+
+```
+
+# convert to long format to account for multiple non-prof activity
+```{r}
+Non_pro_activity.long=
+Non_pro_actvity %>% 
+  pivot_longer(c(8,9,10), values_to = 'Activity')
+```
+
+# trim some leading white spaces
+```{r}
+Non_pro_activity.long$Activity=
+trimws(Non_pro_activity.long$Activity, 'left')
+
+Non_pro_activity.long$Activity=
+trimws(Non_pro_activity.long$Activity, 'right')
+
+unique(Non_pro_activity.long$Activity)
+
+
+
+```
+
+```{r}
+Non_pro_activity.long%>% 
+  filter(complete.cases(.)) %>% 
+  count(Activity,Country) %>% 
+  ggplot()+aes (x=Country,y=n, fill=Activity)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+
+ theme(axis.text.x = element_text(angle=45, hjust=1))
+
+Non_pro_activity.long%>% 
+  filter(complete.cases(.)) %>% 
+  filter(Gender=='Female') %>% 
+  #filter(Gender=='Male') %>% 
+  count(Activity,Country) %>% 
+  ggplot()+aes (x=Country,y=n, fill=Activity)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+
+ theme(axis.text.x = element_text(angle=45, hjust=1))+ggtitle('Female') +
+  scale_fill_manual(values=c('#d7191c', '#fdae61', '#ffffbf', '#a6d96a','#1a9641'))
+
+
+Non_pro_activity.long%>% 
+  filter(complete.cases(.)) %>% 
+  #filter(Gender=='Female') %>% 
+  filter(Gender=='Male') %>% 
+  count(Activity,Country) %>% 
+  ggplot()+aes (x=Country,y=n, fill=Activity)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+
+ theme(axis.text.x = element_text(angle=45, hjust=1))+ggtitle('Male')+
+  scale_fill_manual(values=c('#d7191c',  '#ffffbf', '#a6d96a','#1a9641'))
+
+
+```
+
+
+
+### Functions of riparian zones
+
+```{r}
+Functions<-
+  Quest_all[,c(1,2,3,6:10,22)]
+
+Functions$ID=
+  seq(1:nrow(Functions))
+```
+
+```{r}
+Functions.long<-
+  Functions %>% 
+  pivot_longer(c(4,5,6,7), names_to = 'Perceived_functions')
+
+Functions.long$value=
+  factor(Functions.long$value, levels = c('very important', 'important', 'slightly important'))
+
+Functions.long$value
+
+Functions.long$Country<-factor(Functions.long$Country, levels=c('Sweden', 'Germany', 'Italy (Alp)', 'Spain', 'Portugal', 'Italy (Med)'))
+
+```
+
+# Functions
+```{r fig.height=5,fig.width=6}
+
+
+Functions.long%>% 
+  filter(complete.cases(.)) %>% 
+  count(Perceived_functions, value, Country) %>% 
+  ggplot()+aes (x=Perceived_functions, y=n, fill=value)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+ylab(NULL)+
+ theme(axis.text.x = element_text(angle=45, hjust=1))+facet_wrap(~Country)+scale_fill_manual(values=c('darkred', 'orange', 'gold'))+
+   coord_flip()+theme(legend.position = 'top')
+
+
+pdf('Functions.pdf', h=6, w=5)
+Functions.long%>% 
+  filter(complete.cases(.)) %>% 
+  count(Perceived_functions, value, Country) %>% 
+  ggplot()+aes (x=Perceived_functions, y=n, fill=value)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+ylab(NULL)+
+ theme(axis.text.x = element_text(angle=45, hjust=1))+facet_wrap(~Country)+scale_fill_manual(values=c('darkred', 'orange', 'gold'))+
+   coord_flip()+theme(legend.position = 'top')
+dev.off()
+
+```
+# Chi square test on functions
+#*temp regulation not sig differences*
+
+```{r}
+temp_regul<-
+Functions.long %>% 
+  filter(Perceived_functions=='Temperature regulation')
+
+csqtest_temp_regul<-
+chisq.test(temp_regul$value, temp_regul$Country)
+
+
+pheatmap(csqtest_temp_regul$residuals,
+         cluster_rows = F, cluster_cols = F,display_numbers = T, fontsize_number = 10)
+
+```
+
+#*flood protection is sig different*
+```{r}
+flood_prot<-
+  Functions.long %>% 
+  filter(Perceived_functions=='Flood protection')
+
+csqtest_flood_prot<-
+  chisq.test(flood_prot$value, flood_prot$Country)
+
+pheatmap(csqtest_flood_prot$residuals,
+         cluster_rows = F, cluster_cols = F,display_numbers = T, fontsize_number = 10, main="Flood protection")
+
+
+
+```
+
+
+
+
+# Stressors
+
+Shorten column name
+```{r}
+names(Quest_all)[14]<-'Land use alteration (agriculture)'
+names(Quest_all)[13]<-'Invasive species & pests'
+
+```
+
+
+# Create df on stressors
+```{r}
+Stressors<-
+  Quest_all[,c(1,2,3,11:15,22)]
+
+Stressors$ID=
+  seq(1:nrow(Stressors))
+```
+# long format of stressors
+```{r}
+Stressors.long<-
+ Stressors %>% 
+  pivot_longer(c(4,5,6,7,8), names_to = 'Perceived_stressor')
+
+Stressors.long$value=
+  factor(Stressors.long$value, levels = c('very important', 'important', 'slightly important'))
+
+Stressors.long$value
+```
+
+```{r}
+Stressors.long$Country<-factor(Stressors.long$Country, levels=c('Sweden', 'Germany', 'Italy (Alp)', 'Spain', 'Portugal', 'Italy (Med)'))
+```
+
+
+# plots of stressors
+```{r fig.height=5, fig.width=7}
+Stressors.long%>% 
+  filter(complete.cases(.)) %>% 
+  count(Perceived_stressor, value, Country) %>% 
+  ggplot()+aes (x=Perceived_stressor, y=n, fill=value)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+ylab(NULL)+
+ theme(axis.text.x = element_text(angle=50, hjust=1))+facet_wrap(~Country)+scale_fill_manual(values=c('darkred', 'orange', 'gold'))+
+  coord_flip()+theme(legend.position = 'top')
+
+pdf('Stressors.pdf', h=6, w=5)
+Stressors.long%>% 
+  filter(complete.cases(.)) %>% 
+  count(Perceived_stressor, value, Country) %>% 
+  ggplot()+aes (x=Perceived_stressor, y=n, fill=value)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+ylab(NULL)+
+ theme(axis.text.x = element_text(angle=50, hjust=1))+facet_wrap(~Country)+scale_fill_manual(values=c('darkred', 'orange', 'gold'))+
+  coord_flip()+theme(legend.position = 'top')
+dev.off()
+
+
+```
+
+# plot of stressors for younger stakeholders
+```{r}
+Stressors.long%>% 
+  filter(complete.cases(.)) %>% 
+  filter(Age %in% c('18-25', '26-35', '36-45'))%>%
+  count(Perceived_stressor, value, Country) %>% 
+  ggplot()+aes (x=Perceived_stressor, y=n, fill=value)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+ylab(NULL)+
+ theme(axis.text.x = element_text(angle=50, hjust=1))+facet_wrap(~Country)+scale_fill_manual(values=c('darkred', 'orange', 'gold'))+
+  coord_flip()+theme(legend.position = 'top')
+```
+
+
+
+
+#test for chi square on pollution
+```{r}
+install.packages("pheatmap")
+library(pheatmap)
+```
+
+# Pollution test
+```{r}
+tmp2=
+Stressors.long %>% filter(Perceived_stressor=='Pollution') 
+  
+
+# these two commands are the same as 
+csqtest_pollution=
+chisq.test(table(tmp2$value, tmp2$Country))
+# or
+chisq.test(tmp2$value, tmp2$Country)
+
+
+csqtest_pollution$observed
+csqtest_pollution$expected
+csqtest_pollution$residuals
+
+# display the residuals
+pheatmap(csqtest_pollution$residuals,
+         cluster_rows = F, cluster_cols = F,display_numbers = T, fontsize_number = 10, main='Pollution')
+
+
+# contribution to overall chi stats
+pollut.contrib=
+  100*
+  ((csqtest_pollution$observed- csqtest_pollution$expected)^2 /csqtest_pollution$expected)/
+  csqtest_pollution$statistic
+
+
+
+# display the contribtionn
+pheatmap(pollut.contrib,
+         display_numbers = T,
+         cluster_rows = F,
+         cluster_cols = F)  
+
+```
+# invasive spp threat test
+```{r}
+tmp2=
+Stressors.long %>% filter(Perceived_stressor=='Invasive species & pests') 
+  
+
+# these two commands are the same as 
+csqtest_invasive=
+chisq.test(table(tmp2$value, tmp2$Country))
+# or
+chisq.test(tmp2$value, tmp2$Country)
+
+
+csqtest_invasive$observed
+csqtest_invasive$expected
+csqtest_invasive$residuals
+
+# display the residuals
+pheatmap(csqtest_invasive$residuals,
+         cluster_rows = F, cluster_cols = F, display_numbers = T, fontsize_number = 10, main='Invasive spp')
+
+# contribution to overall chi stats
+pollut.contrib=
+  100*
+  ((csqtest_pollution$observed- csqtest_pollution$expected)^2 /csqtest_pollution$expected)/
+  csqtest_pollution$statistic
+
+
+
+# display the contribtionn
+pheatmap(pollut.contrib,
+         display_numbers = T,
+         cluster_rows = F,
+         cluster_cols = F)  
+```
+
+
+
+## Hot to extract proportion of each answer from each country.
+```{r}
+# here you get the relative freq of each stressor
+Stressors.long%>% 
+  filter(complete.cases(.)) %>% 
+  #filter(Country =='Sweden') %>% 
+  count(Perceived_stressor, value, Country) %>% 
+  group_by( Country, Perceived_stressor) %>%
+  mutate(freq= n/sum(n)) 
+
+# here you get the relative freq of each individual response
+Stressors.long%>% 
+  filter(complete.cases(.)) %>% 
+  #filter(Country =='Sweden') %>% 
+  count(Perceived_stressor, value, Country) %>% 
+  group_by(Country) %>% 
+  mutate(tot_n=sum(n)) %>% 
+  mutate(rel_n=n/tot_n)
+
+```
+ 
+
+
+###############
+# emblematic species    
+```{r}
+Species<-
+colsplit(Quest_all$`Emblematic species`, '-', c('a', 'b', 'c','d'))
+
+Species$ID=
+  seq(1:nrow(Species))
+
+Species<-
+  cbind(Quest_all[,c(1,2,3,22)], Species)
+
+Species$b[Species$b=='']<-NA
+Species$c[Species$c=='']<-NA
+Species$d[Species$d=='']<-NA
+
+
+```
+
+# Long species df
+```{r}
+Species.long=
+Species %>% 
+  pivot_longer(c(5:8), values_to = 'Emblematic species')
+```
+
+# time species names
+```{r}
+Species.long$`Emblematic species`=
+trimws(Species.long$`Emblematic species`, 'left')
+
+Species.long$`Emblematic species`=
+trimws(Species.long$`Emblematic species`, 'right')
+```
+
+# remove NA and make species as factor to sort them
+```{r}
+Species.long <-
+  Species.long %>% 
+  filter(complete.cases(.))
+
+
+Species.long$`Emblematic species`<-
+  factor(Species.long$`Emblematic species`)
+
+
+```
+
+
+
+
+# Sorting species by freq
+# create species vector for Worlde
+```{r}
+species.sorted=
+sort(table(Species.long$`Emblematic species`), decreasing = T)
+
+species.sorted<-
+  as.data.frame(species.sorted)
+
+
+write.csv(species.sorted, 'species.sorted.csv')
+
+
+
+
+
+```
+
+#WORDLE
+```{r}
+install.packages("wordcloud")
+library(wordcloud)
+
+species.sorted_noukn=species.sorted[-3,]
+
+wordcloud(words = species.sorted_noukn$Var1, freq = species.sorted_noukn$Freq, min.freq = 2, max.words=55, random.order=FALSE, 
+          rot.per = 0, fixed.asp = F)
+
+```
+
+
+# rank species according to overall freq
+```{r}
+Species.long$spp_rank=
+  species.sorted$Freq[match(Species.long$`Emblematic species`, species.sorted$Var1)]
+
+
+species.sorted$Var1<-factor(species.sorted$Var1)
+species.sorted$Var1
+
+
+Species.long$`Emblematic species`<-
+  factor(Species.long$`Emblematic species`)
+
+levels(species.sorted$Var1)
+
+
+Species.long$`Emblematic species`<-
+  factor(Species.long$`Emblematic species`, levels=levels(species.sorted$Var1))
+
+Species.long$`Emblematic species`
+
+```
+
+```{r}
+Species.long$Country<-factor(Species.long$Country, levels=c('Sweden', 'Germany', 'Italy (Alp)', 'Spain', 'Portugal', 'Italy (Med)'))
+```
+
+
+
+```{r fig.width=7, fig.height=6}
+Species.long %>% 
+  filter(complete.cases(.)) %>% 
+  filter(`Emblematic species` %in% species.sorted$Var1[1:50]) %>% 
+  #arrange(desc(spp_rank)) %>%
+  count(`Emblematic species`,Country) %>% 
+  ggplot()+aes(x=`Emblematic species`, y=n, fill=Country)+geom_col()+xlab(NULL)+ylab(NULL)+
+  theme(axis.text.x = element_text(angle=90, size=7))+scale_fill_manual(values=c('#1b5566','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02'))+
+  coord_flip()+theme_classic()+guides(fill=guide_legend(ncol=3))+theme(legend.position = c(0.5,0.92))
+
+
+Species.long %>% 
+  filter(complete.cases(.)) %>% 
+  filter(`Emblematic species` %in% species.sorted$Var1[1:50]) %>% 
+  count(Country, `Emblematic species`) %>% 
+  ggplot()+aes(x=`Emblematic species`, y=n)+geom_col()+theme(axis.text.x = element_text(angle=90, size=7))+xlab(NULL)+ylab(NULL)+
+  facet_wrap(~Country, scale='free')
+
+## Excluding the I dont know response
+Species.long %>% 
+  filter(complete.cases(.)) %>% 
+  filter(`Emblematic species` %in% species.sorted_noukn$Var1[1:50]) %>% 
+  #arrange(desc(spp_rank)) %>%
+  count(`Emblematic species`,Country) %>% 
+  ggplot()+aes(x=`Emblematic species`, y=n, fill=Country)+geom_col()+xlab(NULL)+ylab(NULL)+
+  theme(axis.text.x = element_text(angle=90, size=7))+scale_fill_manual(values=c('#1b5566','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02'))+
+  coord_flip()+theme_classic()+guides(fill=guide_legend(ncol=3))+theme(legend.position = c(0.5,0.92))
+
+Species.long %>% 
+  filter(complete.cases(.)) %>% 
+  filter(`Emblematic species` %in% species.sorted_noukn$Var1[1:50]) %>% 
+  count(Country, `Emblematic species`) %>% 
+  ggplot()+aes(x=`Emblematic species`, y=n)+geom_col()+theme(axis.text.x = element_text(angle=90, size=7))+xlab(NULL)+ylab(NULL)+
+  facet_wrap(~Country, scale='free')
+
+
+
+```
+# Export the freq of emblematic spp
+```{r}
+pdf('Spp_freq.pdf',h=7, w=7)
+Species.long %>% 
+  filter(complete.cases(.)) %>% 
+  filter(`Emblematic species` %in% species.sorted$Var1[1:50]) %>% 
+  #arrange(desc(spp_rank)) %>%
+  count(`Emblematic species`,Country) %>% 
+  ggplot()+aes(x=`Emblematic species`, y=n, fill=Country)+geom_col()+xlab(NULL)+ylab('Number of responses')+
+  theme(axis.text.x = element_text(angle=90, size=7))+scale_fill_manual(values=c('#1b5566','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02'))+
+  coord_flip()+theme_classic()+guides(fill=guide_legend(ncol=3))+theme(legend.position = c(0.5,0.92))
+
+dev.off()
+
+
+```
+
+# Export the freq of emblematic spp (w/o I dont know answers)
+```{r}
+pdf('Spp_freq_nounkn.pdf',h=7, w=7)
+Species.long %>% 
+  filter(complete.cases(.)) %>% 
+  filter(`Emblematic species` %in% species.sorted_noukn$Var1[1:50]) %>% 
+  #arrange(desc(spp_rank)) %>%
+  count(`Emblematic species`,Country) %>% 
+  ggplot()+aes(x=`Emblematic species`, y=n, fill=Country)+geom_col()+xlab(NULL)+ylab(NULL)+
+  theme(axis.text.x = element_text(angle=90, size=7))+scale_fill_manual(values=c('#1b5566','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02'))+
+  coord_flip()+theme_classic()+guides(fill=guide_legend(ncol=3))+theme(legend.position = c(0.5,0.92))
+
+dev.off()
+```
+
+
+
+
+## emblematic species composition, as PCoA
+```{r}
+Species.composition=
+Species.long %>% 
+  count(Country, `Emblematic species`) %>% 
+  pivot_wider(names_from = `Emblematic species`, values_from = n)
+```
+
+```{r}
+Species.composition[is.na(Species.composition)]<-0
+
+
+dist.bray=vegdist(Species.composition[,-1], 'bray')
+
+dist.bray=vegdist(Species.composition[,c(2:50)], 'bray')
+
+
+dist.bray_nounkn=vegdist(Species.composition[,-c(1,4)], 'bray')
+
+
+```
+
+## PCoA with APE 
+```{r}
+library(ape)
+
+pcoa2<-
+pcoa(dist.bray)
+biplot.pcoa(pcoa2, Species.composition[,c(2:5)], cex=0.1)
+
+
+pcoa2_nouknw<-
+pcoa(dist.bray_nounkn)
+biplot.pcoa(pcoa2_nouknw, Species.composition[,c(4:12)], cex=0.1)
+
+
+```
+
+
+
+# Plot of the PCoA (species composition)
+
+```{r}
+library(ggrepel)
+```
+
+
+# PCOA cmdscale
+*removing idontknow answer give same results*
+```{r}
+
+
+pcoa1<-cmdscale(dist.bray, eig=T)
+pcoa1$eig
+
+pcoa1=as.data.frame(
+cmdscale(dist.bray))
+
+pcoa1$Country=Species.composition$Country
+pcoa1$Country<-factor(pcoa1$Country, levels=c('Sweden', 'Germany', 'Italy (Alp)', 'Spain', 'Portugal', 'Italy (Med)'))
+
+pcoa1 %>% 
+  ggplot()+aes(V1, V2, col=Country, label=Country)+geom_point()+scale_color_manual(values=c('#1b5566','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02'))+
+  xlim(c(-0.3,0.6))+geom_text_repel()
+
+
+
+pcoa1_nounkn<-cmdscale(dist.bray_nounkn, eig=T)
+pcoa1_nounkn<-as.data.frame(cmdscale(dist.bray_nounkn))
+pcoa1_nounkn$Country=Species.composition$Country
+pcoa1_nounkn$Country<-factor(pcoa1$Country, levels=c('Sweden', 'Germany', 'Italy (Alp)', 'Spain', 'Portugal', 'Italy (Med)'))
+
+pcoa1_nounkn %>% 
+  ggplot()+aes(V1, V2, col=Country, label=Country)+geom_point()+scale_color_manual(values=c('#1b5566','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02'))+
+  geom_text_repel()
+
+```
+
+# extract spp scores    *notworking*
+```{r}
+install.packages('BiodiversityR')
+library(BiodiversityR)
+install.packages('tcltk')
+library(tcltk)
+
+pcoa1_sppscore<-
+add.spec.scores(pcoa1, Species.composition[,-1], method="cor.scores", multi=1, Rscale=F, scaling="1")
+```
+
+
+# export PCoA plot
+```{r fig.width=5}
+pcoa1 %>% 
+  ggplot()+aes(V1, V2, col=Country, label=Country)+geom_point()+scale_color_manual(values=c('#1b5566','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02'))+
+  xlim(c(-0.3,0.6))+geom_text_repel()+xlab('PCoA1 40%')+ylab('PCoA2 21%')+theme(legend.position = 'none')+theme_bw()
+
+pdf('PCoA1.pdf', w=3, h=3)
+pcoa1 %>% 
+  ggplot()+aes(V1, V2, col=Country, label=Country)+geom_point()+scale_color_manual(values=c('#1b5566','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02'))+
+  xlim(c(-0.3,0.6))+geom_text_repel()+xlab('PCoA1 40%')+ylab('PCoA2 21%')+theme(legend.position = 'none')
+dev.off()
+
+```
+
+
+
+
+########
+## management actions
+
+
+```{r}
+
+Quest_all <- read_excel("Quest_all.xls")
+Quest_all$Country<-factor(Quest_all$Country, levels=c('Sweden', 'Germany', 'Italy (TN)', 'Spain', 'Portugal', 'Italy (RM)'))
+levels(Quest_all$Country)<-c('Sweden', 'Germany', 'Italy (Alp)', 'Spain', 'Portugal', 'Italy (Med)')
+```
+
+ 
+```{r}
+Management<-
+colsplit(Quest_all$`Management Action - Category`, '-', c('a', 'b', 'c','d'))
+
+Management$ID=
+  seq(1:nrow(Management))
+
+Management<-
+  cbind(Quest_all[,c(1,2,3,22)], Management)
+
+Management$b[Management$b=='']<-NA
+Management$c[Management$c=='']<-NA
+Management$d[Management$d=='']<-NA
+
+
+```
+
+
+
+# Long management df
+```{r}
+Management.long=
+Management %>% 
+  pivot_longer(c(5:8), values_to = 'Management action')
+
+Management.long$Country<-
+factor(Management.long$Country, levels=c('Sweden', 'Germany', 'Italy (Alp)', 'Spain', 'Portugal', 'Italy (Med)'))
+
+
+```
+
+# Trim names
+```{r}
+Management.long$`Management action`=
+trimws(Management.long$`Management action`, 'left')
+
+Management.long$`Management action`=
+trimws(Management.long$`Management action`, 'right')
+```
+
+```{r}
+Management.long$`Management action`[1905]<-'Awareness & Education'
+which(Management.long$`Management action`=='Barriers')
+Management.long$`Management action`[990]<-'Flow & Barriers'
+Management.long$`Management action`[c(1585, 2010)]<-'Flow & Barriers'
+
+which(Management.long$`Management action`=="I don't know")
+
+```
+
+
+```{r}
+table(Management.long$`Management action`, Management.long$Country)
+
+
+Management.long$`Management action`<-factor(Management.long$`Management action`,levels=c(
+'Buffer', 'Vegetation', 'Banks', 'Flow & Barriers',  'Floodplains & Meandering','Let it run wild',
+'Protection', 'Restoration', 'Invasives',  'Pollution', 'Sustainable use & Hydropower',
+'Monitoring & surveillance', 'Awareness & Education', "I don't know"))
+
+Management.long$`Management action`
+
+```
+
+# Plot management needs + piechart tot
+```{r fig.height=5}
+plot_managment<-
+Management.long%>% 
+  filter(complete.cases(.)) %>% 
+  count(`Management action`, Country) %>% 
+  ggplot()+aes (x=Country, y=n, fill=`Management action`)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+
+ theme(axis.text.x = element_text(angle=45, hjust=1)) +coord_flip()+ylab(NULL)+
+  
+  scale_fill_manual(values = c(brewer.pal(name="Spectral", n =5), brewer.pal(name="BrBG", n = 8), 'grey80'))+guides(fill=guide_legend(ncol=2))
+
+
+pie_management<-
+Management.long%>% 
+  filter(complete.cases(.)) %>% 
+    count(`Management action`) %>% 
+  mutate(hole=3) %>% 
+  mutate(prop=n/sum(n)) %>% 
+    ggplot()+aes(x=hole, y=n, fill=`Management action`)+geom_col()+coord_polar(theta = 'y')+xlim(c(0.2, 3 + 0.5))+
+  scale_fill_manual(values = c(brewer.pal(name="Spectral", n =5), brewer.pal(name="BrBG", n = 8), 'grey80'))+theme(legend.position = 'none')+
+  theme(panel.background = element_rect(fill = "white"),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+
+```
+
+
+```{r}
+pdf('plot_management.pdf', h=5, w=8)
+plot_managment
+dev.off()
+
+pdf('pie_management.pdf', h=3, w=3)
+pie_management
+dev.off()
+
+
+
+```
+# Plot management with legend in 2 cols to add the CAP plot
+```{r}
+pdf('plot_management_narrow.pdf', h=5, w=6)
+Management.long%>% 
+  filter(complete.cases(.)) %>% 
+  count(`Management action`, Country) %>% 
+  ggplot()+aes (x=Country, y=n, fill=`Management action`)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+
+ theme(axis.text.x = element_text(angle=45, hjust=1), axis.text.y = element_text(size=9)) +coord_flip()+ylab(NULL)+
+  
+  scale_fill_manual(values = c(brewer.pal(name="Spectral", n =5), brewer.pal(name="BrBG", n = 8), 'grey80'))+guides(fill=guide_legend(ncol=1))+theme(legend.text = element_text(size=8.5))
+dev.off()
+```
+ 
+ # plot of management needs for younger folks
+```{r}
+Management.long%>% 
+  filter(complete.cases(.)) %>% 
+   filter(Age %in% c('18-25', '26-35', '36-45'))%>%
+  count(`Management action`, Country) %>% 
+  ggplot()+aes (x=Country, y=n, fill=`Management action`)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+
+ theme(axis.text.x = element_text(angle=45, hjust=1), axis.text.y = element_text(size=9)) +coord_flip()+ylab(NULL)+
+  
+  scale_fill_manual(values = c(brewer.pal(name="Spectral", n =5), brewer.pal(name="BrBG", n = 8), 'grey80'))+guides(fill=guide_legend(ncol=1))+theme(legend.text = element_text(size=8.5))
+```
+
+
+
+
+
+# Chi square test on management action
+```{r}
+Management.long_noNA<-
+  Management.long %>% filter(complete.cases(.))
+
+
+csqtest_management<-
+chisq.test(Management.long_noNA$`Management action`, Management.long_noNA$Country)
+
+
+pheatmap(csqtest_management$residuals,
+         cluster_rows = F, cluster_cols = F, display_numbers = T, fontsize_number = 10, main='Management needs')+theme(legend.position = 'none')
+```
+
+
+# Test plotting with ggalluvium
+```{r}
+install.packages('ggalluvial')
+library(ggalluvial)
+```
+
+```{r}
+Management.long%>% 
+  filter(complete.cases(.)) %>% 
+  count(`Management action`, Country) %>% 
+  ggplot()+aes(axis1=Country, axis2=`Management action`, y=n)+geom_alluvium(aes(fill=Country))+
+  geom_stratum()+geom_text(stat = "stratum",aes(label = after_stat(stratum)))
+```
+
+
+
+
+## How should do more?
+
+```{r}
+
+Quest_all <- read_excel("Quest_all.xls")
+
+
+Quest_all$Country<-factor(Quest_all$Country, levels=c('Sweden', 'Germany', 'Italy (TN)', 'Spain', 'Portugal', 'Italy (RM)'))
+levels(Quest_all$Country)<-c('Sweden', 'Germany', 'Italy (Alp)', 'Spain', 'Portugal', 'Italy (Med)')
+```
+
+ 
+```{r}
+Do_more<-
+colsplit(Quest_all$`Who should do more?`, ',', c('a', 'b', 'c','d','e','f','g','h'))
+
+Do_more$ID=
+  seq(1:nrow(Do_more))
+
+Do_more<-
+  cbind(Quest_all[,c(1,2,3,22)], Do_more)
+
+Do_more$a[Do_more$a=='']<-NA
+Do_more$b[Do_more$b=='']<-NA
+Do_more$c[Do_more$c=='']<-NA
+Do_more$d[Do_more$d=='']<-NA
+Do_more$e[Do_more$e=='']<-NA
+Do_more$f[Do_more$f=='']<-NA
+Do_more$g[Do_more$g=='']<-NA
+Do_more$h[Do_more$h=='']<-NA
+
+```
+
+
+# Long management df
+```{r}
+Do_more.long=
+Do_more %>% 
+  pivot_longer(c(5:12), values_to = 'Should_do_more')
+
+Do_more.long$Country<-
+factor(Do_more.long$Country, levels=c('Sweden', 'Germany', 'Italy (Alp)', 'Spain', 'Portugal', 'Italy (Med)'))
+levels(Do_more.long$Country)<-c('Sweden', 'Germany', 'Italy (Alp)', 'Spain', 'Portugal', 'Italy (Med)')
+```
+
+# Trim names
+```{r}
+Do_more.long$Should_do_more=
+trimws(Do_more.long$Should_do_more, 'left')
+
+Do_more.long$Should_do_more=
+trimws(Do_more.long$Should_do_more, 'right')
+```
+
+```{r}
+table(Do_more.long$Should_do_more)
+table(Do_more.long$Should_do_more, Do_more.long$Country)
+
+which(Do_more.long$Should_do_more=='Water managers')
+
+```
+
+```{r}
+plot_domore<-
+Do_more.long%>% 
+  filter(complete.cases(.)) %>% 
+  count(Should_do_more, Country) %>% 
+  ggplot()+aes (x=Country, y=n, fill=Should_do_more)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+
+ theme(axis.text.x = element_text(angle=45, hjust=1)) +coord_flip()+ylab(NULL)+
+  
+  scale_fill_manual(values = c(brewer.pal(name='Dark2', n =7), 'darkblue'))+guides(fill=guide_legend(ncol=2))
+
+
+pie_domore<-
+Do_more.long %>% 
+  filter(complete.cases(.)) %>% 
+    count(Should_do_more) %>% 
+  mutate(hole=3) %>% 
+  mutate(prop=n/sum(n)) %>% 
+    ggplot()+aes(x=hole, y=n, fill=Should_do_more)+geom_col()+coord_polar(theta = 'y')+xlim(c(0.2, 3 + 0.5))+
+  scale_fill_manual(values = c(brewer.pal(name='Dark2', n =7), 'darkblue')) +theme(legend.position = 'none')+
+  theme(panel.background = element_rect(fill = "white"),
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.text = element_blank())
+
+
+
+```
+
+```{r}
+pdf('plot_domore.pdf', w=8, h=5)
+plot_domore
+dev.off()
+
+pdf('pie_domore.pdf', w=3,h=3)
+pie_domore
+dev.off()
+```
+
+
+
+# Chi sqre test on 'Responsibilities'
+
+
+```{r}
+Do_more_nonac.long_noNA<-
+  Do_more_nonac.long %>% filter(complete.cases(.))
+
+csqtest_do_more<-
+chisq.test(Do_more_nonac.long_noNA$Should_do_more, Do_more_nonac.long_noNA$Country)
+
+
+pheatmap(csqtest_do_more$residuals,
+         cluster_rows = F, cluster_cols = F, display_numbers = T, fontsize_number = 10, main='Responsibilities')
+```
+# Prova ggluvium
+```{r}
+Do_more.long %>% 
+  filter(complete.cases(.)) %>% 
+  count(Should_do_more, Country) %>% 
+  ggplot()+aes(axis1=Country, axis2=Should_do_more, y=n)+geom_alluvium(aes(fill=Country))+
+  geom_stratum()+geom_text(stat = "stratum",aes(label=after_stat(stratum)))+
+  scale_fill_manual(values=c('#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02')) 
+
+```
+
+
+

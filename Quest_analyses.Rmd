@@ -12,10 +12,10 @@ knitr::opts_chunk$set(echo = TRUE, fig.width = 6)
 install.packages("tidytext")
 library(tidytext)
 library(tidyverse)
-
+library(readxl)
 # install.packages("tidyr")
 library(reshape2)
-
+library(pheatmap)
 install.packages('RColorBrewer')
 library(RColorBrewer)
 ```
@@ -23,6 +23,11 @@ library(RColorBrewer)
 ```{r}
 theme_set(theme_bw())
 ```
+
+```{r}
+library(readr)
+```
+
 
 
 # Import the Questionnaire
@@ -231,6 +236,11 @@ pro_activity.long%>%
 dev.off()
 ```
 
+```{r}
+%>% 
+  #filter(`Gender you identified yourself with` == 'Female') %>% 
+  count(Conservation_Status)
+```
 
 
 
@@ -439,6 +449,7 @@ dev.off()
 # Chi square test on functions
 #*temp regulation not sig differences*
 
+
 ```{r}
 temp_regul<-
 Functions.long %>% 
@@ -528,6 +539,19 @@ dev.off()
 
 ```
 
+
+```{r}
+Stressors.long%>% 
+  filter(complete.cases(.)) %>% 
+  count(Perceived_stressor, value) %>% 
+  ggplot()+aes (x=Perceived_stressor, y=n, fill=value)+geom_bar(position = 'fill', stat='identity')+xlab(NULL)+ylab(NULL)+
+ theme(axis.text.x = element_text(angle=50, hjust=1))+scale_fill_manual(values=c('darkred', 'orange', 'gold'))+
+  coord_flip()+theme(legend.position = 'top')
+```
+
+
+
+
 # plot of stressors for younger stakeholders
 ```{r}
 Stressors.long%>% 
@@ -541,12 +565,6 @@ Stressors.long%>%
 
 
 
-
-#test for chi square on pollution
-```{r}
-install.packages("pheatmap")
-library(pheatmap)
-```
 
 # Pollution test
 ```{r}
@@ -710,9 +728,6 @@ species.sorted<-
 write.csv(species.sorted, 'species.sorted.csv')
 
 
-
-
-
 ```
 
 #WORDLE
@@ -755,13 +770,51 @@ Species.long$`Emblematic species`
 Species.long$Country<-factor(Species.long$Country, levels=c('Sweden', 'Germany', 'Italy (Alp)', 'Spain', 'Portugal', 'Italy (Med)'))
 ```
 
+```{r}
+install.packages('stringr')
+library(stringr)
+```
+
+# Rename and homogenize Bat and Bats (all BATS now)
+```{r}
+tmp=
+Species.long %>% 
+  filter(`Emblematic species` =='Bat')
+
+
+which (Species.long$`Emblematic species` == "Bat")
+# 568 579 586
+
+Species.long$`Emblematic species`[568]<-'Bats'
+Species.long$`Emblematic species`[579]<-'Bats'
+Species.long$`Emblematic species`[586]<-'Bats'
+
+
+```
+
+#Sort the species again, after the name change in BATS
+```{r}
+species.sorted=
+sort(table(Species.long$`Emblematic species`), decreasing = T)
+
+species.sorted<-
+  as.data.frame(species.sorted)
+
+# reworder factor in data
+Species.long$`Emblematic species`<-
+   factor(Species.long$`Emblematic species`, levels=levels(species.sorted$Var1))
+
+#write.csv(species.sorted, 'species.sorted.csv')
+
+
+```
 
 
 ```{r fig.width=7, fig.height=6}
 Species.long %>% 
   filter(complete.cases(.)) %>% 
   filter(`Emblematic species` %in% species.sorted$Var1[1:50]) %>% 
-  #arrange(desc(spp_rank)) %>%
+ # arrange(desc(spp_rank)) %>%
   count(`Emblematic species`,Country) %>% 
   ggplot()+aes(x=`Emblematic species`, y=n, fill=Country)+geom_col()+xlab(NULL)+ylab(NULL)+
   theme(axis.text.x = element_text(angle=90, size=7))+scale_fill_manual(values=c('#1b5566','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02'))+
@@ -812,6 +865,26 @@ dev.off()
 
 ```
 
+
+```{r}
+Species.long %>% 
+  filter(complete.cases(.)) %>% 
+  #filter(`Emblematic species` %in% species.sorted$Var1[1:50]) %>% 
+  #arrange(desc(spp_rank)) %>%
+  group_by(Country) %>% 
+  count(`Emblematic species`) %>% 
+  mutate(tot=n()) %>% 
+  mutate(percent=n/tot) %>% 
+  filter(`Emblematic species` == "I don't know" ) %>% 
+  select(percent) %>% summary()
+
+```
+
+
+
+
+
+
 # Export the freq of emblematic spp (w/o I dont know answers)
 ```{r}
 pdf('Spp_freq_nounkn.pdf',h=7, w=7)
@@ -837,6 +910,11 @@ Species.long %>%
   count(Country, `Emblematic species`) %>% 
   pivot_wider(names_from = `Emblematic species`, values_from = n)
 ```
+
+```{r}
+library(vegan)
+```
+
 
 ```{r}
 Species.composition[is.na(Species.composition)]<-0
@@ -1094,7 +1172,7 @@ chisq.test(Management.long_noNA$`Management action`, Management.long_noNA$Countr
 
 
 pheatmap(csqtest_management$residuals,
-         cluster_rows = F, cluster_cols = F, display_numbers = T, fontsize_number = 10, main='Management needs')+theme(legend.position = 'none')
+         cluster_rows = F, cluster_cols = F, display_numbers = T, fontsize_number = 10, main='Management actions')+theme(legend.position = 'none')
 ```
 
 
@@ -1220,6 +1298,17 @@ dev.off()
 
 # Chi sqre test on 'Responsibilities'
 
+
+```{r fig.width=6}
+Do_more.long_noNA<-
+  Do_more.long %>% filter(complete.cases(.))
+
+csqtest_do_more<-
+chisq.test(Do_more.long_noNA$Should_do_more, Do_more.long_noNA$Country)
+
+pheatmap(csqtest_do_more$residuals,
+         cluster_rows = F, cluster_cols = F, display_numbers = T, fontsize_number = 8, main='Responsibilities')
+```
 
 ```{r}
 Do_more_nonac.long_noNA<-
